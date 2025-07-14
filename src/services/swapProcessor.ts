@@ -1,21 +1,24 @@
 import { ParsedTransaction, Swap, PlatformMapping } from '../types';
 
+// Enhanced swap processor with more comprehensive Jupiter detection
+
 export class SwapProcessorService {
   private platformMapping: PlatformMapping;
 
   constructor() {
-    // Enhanced mapping with more Jupiter program IDs
+    // EXPANDED mapping with ALL known Jupiter program IDs
     this.platformMapping = {
       // PUMP.FUN
       '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P': 'pump.fun',
       'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA': 'Pumpswap',
 
-      // JUPITER (Enhanced with more program IDs)
-      'JUP6LkbZbjS1jKKwapdHch49T4B9iFPE9Z1b6dpVRfC': 'jupiter',
-      'JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB': 'jupiter',
-      'JUP2jxvXaqu7NQY1GmNF4m1vodw12LVXYxbFL2uJvfo': 'jupiter',
-      'JUP3c2Uh3WA4Ng34tw6kPd2G4C5BB21Xo36Je1s32Ph': 'jupiter',
-
+      // JUPITER (Comprehensive list)
+      'JUP6LkbZbjS1jKKwapdHch49T4B9iFPE9Z1b6dpVRfC': 'jupiter', // V6 (main)
+      'JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB': 'jupiter', // V4
+      'JUP2jxvXaqu7NQY1GmNF4m1vodw12LVXYxbFL2uJvfo': 'jupiter', // V2
+      'JUP3c2Uh3WA4Ng34tw6kPd2G4C5BB21Xo36Je1s32Ph': 'jupiter', // V3
+      'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN': 'jupiter', // Legacy
+      
       // RAYDIUM
       '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8': 'Raydium',
       'CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C': 'Raydium',
@@ -29,147 +32,40 @@ export class SwapProcessorService {
     };
   }
 
-  private static canonicalPlatformMap: Record<string, string> = {
-    'pumpfun': 'pumpfun',
-    'pumpswapamm': 'pumpswap',
-    'raydiumlaunchpad': 'raydium',
-    'raydiumammv4': 'raydium',
-    'raydiumcpmm': 'raydium',
-    'jupiter': 'jupiter',
-    'jupiteraggregator': 'jupiter',
-    'jupiterv6': 'jupiter',
-    'orcawhirlpool': 'orca',
-    'meteora': 'meteora',
-  };
-    
-  private static canonicalWhitelist = [
-    'pumpfun',
-    'pumpswap',
-    'raydium',
-    'jupiter',
-    'orca',
-    'meteora',
-  ];
-
-  private static normalizePlatformName(name: string): string {
-    if (!name) return '';
-    const cleaned = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-    return SwapProcessorService.canonicalPlatformMap[cleaned] || cleaned;
-  }
-
-  // NEW: Enhanced platform detection method
+  // Enhanced platform detection with better Jupiter heuristics
   private extractPlatformEnhanced(tx: ParsedTransaction, walletAddress: string): string {
-    // PRIORITY 1: If Helius marks it as SWAP type, it's likely Jupiter
-    if (tx.type === 'SWAP') {
-      console.log(`  HELIUS SWAP detected -> defaulting to Jupiter`);
-      return 'jupiter';
-    }
-    
-    // PRIORITY 2: Check source string for Jupiter indicators
     const rawSource = tx.source || '';
     const sourceStr = rawSource.toLowerCase();
     
-    if (sourceStr.includes('jupiter') || sourceStr.includes('jup')) {
-      console.log(`  Jupiter detected from source: "${rawSource}"`);
-      return 'jupiter';
-    }
+    console.log(`Analyzing TX ${tx.signature.substring(0, 8)}...`);
+    console.log(`  Source: "${tx.source}", Type: "${tx.type}"`);
     
-    // PRIORITY 3: Check normalized source
-    const normalizedSource = SwapProcessorService.normalizePlatformName(rawSource);
-    if (SwapProcessorService.canonicalWhitelist.includes(normalizedSource)) {
-      console.log(`  Platform from normalized source: ${normalizedSource}`);
-      return normalizedSource;
-    }
-    
-    // PRIORITY 4: Check program IDs
-    const programIds = (tx.instructions || []).map(i => i.programId).filter(Boolean);
-    
-    // Known Jupiter program IDs
-    const jupiterProgramIds = [
-      'JUP6LkbZbjS1jKKwapdHch49T4B9iFPE9Z1b6dpVRfC', // Jupiter V6 (main)
-      'JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB', // Jupiter V4
-      'JUP2jxvXaqu7NQY1GmNF4m1vodw12LVXYxbFL2uJvfo', // Jupiter V2
+    // PRIORITY 1: Direct Jupiter source detection (enhanced patterns)
+    const jupiterPatterns = [
+      'jupiter', 'jup', 'jupiter v6', 'jupiter-v6', 'jupiter_v6',
+      'jupiter aggregator', 'jupiter v4', 'jupiter v3', 'jupiter v2'
     ];
     
-    for (const pid of programIds) {
-      if (jupiterProgramIds.includes(pid)) {
-        console.log(`  Jupiter detected from program ID: ${pid}`);
-        return 'jupiter';
-      }
-      
-      if (this.platformMapping[pid]) {
-        const normalized = SwapProcessorService.normalizePlatformName(this.platformMapping[pid]);
-        if (SwapProcessorService.canonicalWhitelist.includes(normalized)) {
-          console.log(`  Platform from program mapping: ${normalized}`);
-          return normalized;
-        }
-      }
-    }
-    
-    // PRIORITY 5: If it looks like a swap but no platform identified, assume Jupiter
-    if (this.isLikelySwap(tx, walletAddress)) {
-      console.log(`  Looks like swap -> defaulting to Jupiter`);
+    if (jupiterPatterns.some(pattern => sourceStr.includes(pattern))) {
+      console.log(`  ✓ Jupiter detected from source: "${rawSource}"`);
       return 'jupiter';
     }
     
-    console.log(`  No platform detected`);
-    return 'unknown';
-  }
-
-  // NEW: Simplified decision logic for processing transactions
-  private shouldProcessTransaction(tx: ParsedTransaction, platform: string, walletAddress: string): boolean {
-    // Process if:
-    // 1. It's marked as SWAP by Helius
-    // 2. It's from a known platform
-    // 3. It looks like a swap transaction
-    
-    const isHeliusSwap = tx.type === 'SWAP';
-    const isKnownPlatform = platform !== 'unknown';
-    const looksLikeSwap = this.isLikelySwap(tx, walletAddress);
-    
-    return isHeliusSwap || isKnownPlatform || looksLikeSwap;
-  }
-
-  // Enhanced platform detection with better Jupiter detection
-  private extractPlatform(tx: ParsedTransaction, walletAddress: string): string {
-    const rawSource = tx.source || '';
-    const normalizedSource = SwapProcessorService.normalizePlatformName(rawSource);
-    
-    // Debug logging to see what we're working with
-    console.log(`Analyzing transaction ${tx.signature.substring(0, 8)}...`);
-    console.log(`  Source: "${tx.source}"`);
-    console.log(`  Normalized: "${normalizedSource}"`);
-    console.log(`  Type: "${tx.type}"`);
-    
-    // First check if source matches whitelist
-    if (SwapProcessorService.canonicalWhitelist.includes(normalizedSource)) {
-      console.log(`  ✓ Platform detected from source: ${normalizedSource}`);
-      return normalizedSource;
-    }
-    
-    // Enhanced Jupiter detection - check source string variations
-    const sourceStr = rawSource.toLowerCase();
-    if (sourceStr.includes('jupiter') || 
-        sourceStr.includes('jup') ||
-        sourceStr === 'jupiter aggregator' ||
-        sourceStr === 'jupiter v6' ||
-        sourceStr === 'jupiter-v6' ||
-        sourceStr === 'jupiter_v6') {
-      console.log(`  ✓ Jupiter detected from source string: "${rawSource}"`);
+    // PRIORITY 2: Check if Helius marked it as SWAP type
+    if (tx.type === 'SWAP') {
+      console.log(`  ✓ Helius SWAP type detected -> Jupiter`);
       return 'jupiter';
     }
     
-    // Check program IDs with enhanced Jupiter detection
+    // PRIORITY 3: Program ID detection (enhanced Jupiter list)
     const programIds = (tx.instructions || []).map(i => i.programId).filter(Boolean);
-    console.log(`  Program IDs: ${programIds.slice(0, 3).join(', ')}${programIds.length > 3 ? '...' : ''}`);
-    
-    // Known Jupiter program IDs (comprehensive list)
     const jupiterProgramIds = [
-      'JUP6LkbZbjS1jKKwapdHch49T4B9iFPE9Z1b6dpVRfC', // Jupiter V6
-      'JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB', // Jupiter V4
-      'JUP2jxvXaqu7NQY1GmNF4m1vodw12LVXYxbFL2uJvfo', // Jupiter V2
-      'JUP3c2Uh3WA4Ng34tw6kPd2G4C5BB21Xo36Je1s32Ph', // Jupiter V3
-      'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN',  // Jupiter old
+      'JUP6LkbZbjS1jKKwapdHch49T4B9iFPE9Z1b6dpVRfC', // V6 (most common)
+      'JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB', // V4
+      'JUP2jxvXaqu7NQY1GmNF4m1vodw12LVXYxbFL2uJvfo', // V2
+      'JUP3c2Uh3WA4Ng34tw6kPd2G4C5BB21Xo36Je1s32Ph', // V3
+      'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', // Legacy
+      // Add any new Jupiter program IDs here
     ];
     
     for (const pid of programIds) {
@@ -179,181 +75,244 @@ export class SwapProcessorService {
       }
       
       if (this.platformMapping[pid]) {
-        const normalized = SwapProcessorService.normalizePlatformName(this.platformMapping[pid]);
-        if (SwapProcessorService.canonicalWhitelist.includes(normalized)) {
-          console.log(`  ✓ Platform detected from program mapping: ${normalized}`);
-          return normalized;
-        }
+        const normalized = this.platformMapping[pid];
+        console.log(`  ✓ Platform detected from program mapping: ${normalized}`);
+        return normalized;
       }
     }
     
-    // Advanced Jupiter heuristics
-    if (this.detectJupiterByPattern(tx, walletAddress)) {
-      console.log(`  ✓ Jupiter detected by transaction pattern`);
+    // PRIORITY 4: Enhanced transaction pattern analysis for Jupiter
+    if (this.detectJupiterByAdvancedPattern(tx, walletAddress)) {
+      console.log(`  ✓ Jupiter detected by advanced pattern analysis`);
       return 'jupiter';
     }
     
-    // Check if Helius marked it as SWAP type - likely Jupiter
-    if (tx.type === 'SWAP' && this.isLikelySwap(tx, walletAddress)) {
-      console.log(`  ✓ Detected as Jupiter (Helius SWAP type + swap pattern)`);
-      return 'jupiter';
-    }
-    
-    // If no specific platform found but looks like a swap
+    // PRIORITY 5: If it looks like a swap but no platform identified
     if (this.isLikelySwap(tx, walletAddress)) {
-      console.log(`  ? Falling back to inferred_swap`);
-      return 'inferred_swap';
+      console.log(`  ? Looks like swap -> defaulting to Jupiter`);
+      return 'jupiter';
     }
     
     console.log(`  ✗ No platform detected`);
     return 'unknown';
   }
 
-  // Add this new method to detect Jupiter by transaction patterns
-  private detectJupiterByPattern(tx: ParsedTransaction, walletAddress: string): boolean {
+  // Enhanced Jupiter pattern detection
+  private detectJupiterByAdvancedPattern(tx: ParsedTransaction, walletAddress: string): boolean {
     const tokenTransfers = tx.tokenTransfers || [];
     const userTokenTransfers = tokenTransfers.filter(t => 
       t.toUserAccount === walletAddress || t.fromUserAccount === walletAddress
     );
     
     // Jupiter characteristics:
-    // 1. User typically has 2+ token interactions (send one, receive another)
-    // 2. Multiple instructions (complex routing)
-    // 3. May have intermediate token transfers for routing
+    // 1. Complex routing with multiple intermediate transfers
+    // 2. High instruction count (usually 5+ for aggregation)
+    // 3. Multiple token interactions with intermediate accounts
+    // 4. WSOL wrapping/unwrapping patterns
     
-    if (userTokenTransfers.length >= 2 && (tx.instructions || []).length >= 3) {
-      const userReceives = userTokenTransfers.filter(t => t.toUserAccount === walletAddress);
-      const userSends = userTokenTransfers.filter(t => t.fromUserAccount === walletAddress);
-      
-      // Check if user is trading different tokens
-      const receivedMints = new Set(userReceives.map(t => t.mint));
-      const sentMints = new Set(userSends.map(t => t.mint));
-      
-      // Remove WSOL as it's often used for routing
-      const wsolMint = 'So11111111111111111111111111111111111111112';
-      receivedMints.delete(wsolMint);
-      sentMints.delete(wsolMint);
-      
-      // If trading different tokens, likely Jupiter
-      if (receivedMints.size > 0 && sentMints.size > 0) {
-        const hasNonOverlapping = [...receivedMints].some(mint => !sentMints.has(mint)) ||
-                                  [...sentMints].some(mint => !receivedMints.has(mint));
-        return hasNonOverlapping;
+    const instructionCount = (tx.instructions || []).length;
+    const hasMultipleTokens = new Set(tokenTransfers.map(t => t.mint)).size > 1;
+    const hasWSOL = tokenTransfers.some(t => t.mint === 'So11111111111111111111111111111111111111112');
+    
+    // Pattern 1: High complexity with token routing
+    if (instructionCount > 5 && hasMultipleTokens && userTokenTransfers.length >= 1) {
+      return true;
+    }
+    
+    // Pattern 2: Jupiter-style routing with WSOL
+    if (hasWSOL && instructionCount > 3 && userTokenTransfers.length >= 1) {
+      // Check for wrap/unwrap patterns typical of Jupiter
+      const wsolTransfers = tokenTransfers.filter(t => t.mint === 'So11111111111111111111111111111111111111112');
+      if (wsolTransfers.length >= 2) {
+        return true;
       }
     }
     
-    // Alternative pattern: high instruction count with token swapping
-    if ((tx.instructions || []).length > 5 && userTokenTransfers.length >= 1) {
-      const tradeInfo = this.analyzeTradeDirection(tx, walletAddress);
-      return tradeInfo !== null && tradeInfo.solAmount > 0;
+    // Pattern 3: Multiple intermediate accounts (typical of aggregation)
+    const allAccounts = new Set([
+      ...tokenTransfers.map(t => t.fromUserAccount),
+      ...tokenTransfers.map(t => t.toUserAccount)
+    ]);
+    
+    if (allAccounts.size > 4 && userTokenTransfers.length >= 1) {
+      return true;
     }
     
     return false;
   }
 
-  private isLikelySwap(tx: ParsedTransaction, walletAddress: string): boolean {
-    const hasTokenTransfers = (tx.tokenTransfers || []).length > 0;
-    const hasNativeTransfers = (tx.nativeTransfers || []).length > 0;
+  // More inclusive shouldProcessTransaction method
+
+  private shouldProcessTransaction(tx: ParsedTransaction, platform: string, walletAddress: string): boolean {
+    // Process ANY of these conditions:
+    // 1. Helius marked it as SWAP
+    // 2. Source indicates known DEX platform
+    // 3. Has token transfers involving the user
+    // 4. Platform was detected (not unknown)
     
-    if (!hasTokenTransfers && !hasNativeTransfers) return false;
+    const isHeliusSwap = tx.type === 'SWAP';
+    const isKnownPlatform = platform !== 'unknown';
+    const hasTokenActivity = this.hasUserTokenActivity(tx, walletAddress);
+    const isKnownDexSource = this.isKnownDexSource(tx.source);
     
+    console.log(`    Should process? SWAP=${isHeliusSwap}, Platform=${isKnownPlatform}, TokenActivity=${hasTokenActivity}, KnownDEX=${isKnownDexSource}`);
+    
+    return isHeliusSwap || isKnownPlatform || hasTokenActivity || isKnownDexSource;
+  }
+
+  private hasUserTokenActivity(tx: ParsedTransaction, walletAddress: string): boolean {
     const tokenTransfers = tx.tokenTransfers || [];
-    const nativeTransfers = tx.nativeTransfers || [];
-    
     const userTokenTransfers = tokenTransfers.filter(t => 
       t.toUserAccount === walletAddress || t.fromUserAccount === walletAddress
     );
-    
-    const userNativeTransfers = nativeTransfers.filter(t => 
-      t.toUserAccount === walletAddress || t.fromUserAccount === walletAddress
-    );
-    
-    const userReceivesToken = userTokenTransfers.some(t => t.toUserAccount === walletAddress);
-    const userSendsToken = userTokenTransfers.some(t => t.fromUserAccount === walletAddress);
-    const userReceivesSOL = userNativeTransfers.some(t => t.toUserAccount === walletAddress);
-    const userSendsSOL = userNativeTransfers.some(t => t.fromUserAccount === walletAddress);
-    
-    const wsolTransfers = tokenTransfers.filter(t => this.isSolOrWsol(t.mint));
-    const userReceivesWSOL = wsolTransfers.some(t => t.toUserAccount === walletAddress);
-    const userSendsWSOL = wsolTransfers.some(t => t.fromUserAccount === walletAddress);
-    
-    const isBuyPattern = (userSendsSOL || userSendsWSOL) && userReceivesToken;
-    const isSellPattern = userSendsToken && (userReceivesSOL || userReceivesWSOL);
-    
-    if (isBuyPattern || isSellPattern) {
-      const tradeInfo = this.analyzeTradeDirection(tx, walletAddress);
-      return tradeInfo !== null && tradeInfo.solAmount > 0.00001 && tradeInfo.tokenAmount > 0;
-    }
-    
-    return false;
+    return userTokenTransfers.length > 0;
   }
 
-  // CRITICAL FIX: The issue is likely that Helius is marking transactions as 'SWAP' type
-  // but your logic isn't defaulting to Jupiter properly.
+  private isKnownDexSource(source: string): boolean {
+    if (!source) return false;
+    
+    const knownDexSources = [
+      'PUMP_AMM', 'PUMP_FUN', 'RAYDIUM', 'JUPITER', 'ORCA', 'METEORA',
+      'PHANTOM' // Sometimes Phantom shows up for DEX trades
+    ];
+    
+    return knownDexSources.includes(source.toUpperCase());
+  }
 
-  // Replace your entire processSwaps method with this enhanced version:
-
+  // Enhanced processSwaps method:
   processSwaps(transactions: ParsedTransaction[], walletAddress: string): Swap[] {
     const swaps: Swap[] = [];
-    const skippedTransactions: Array<{signature: string, reason: string, details: any}> = [];
+    const debugInfo: Array<{signature: string, reason: string, platform: string, source: string}> = [];
     
     console.log(`Processing ${transactions.length} transactions for wallet ${walletAddress}...`);
     
     for (const tx of transactions) {
-      if (!tx.blockTime) continue;
+      if (!tx.blockTime) {
+        debugInfo.push({signature: tx.signature, reason: 'No blockTime', platform: 'N/A', source: tx.source || 'N/A'});
+        continue;
+      }
 
-      // Enhanced platform detection
       const platform = this.extractPlatformEnhanced(tx, walletAddress);
-      
-      console.log(`TX ${tx.signature.substring(0, 8)}... -> Platform: ${platform}, Type: ${tx.type}, Source: ${tx.source}`);
+      const shouldProcess = this.shouldProcessTransaction(tx, platform, walletAddress);
 
-      // More inclusive logic: process any swap-looking transaction
-      if (this.shouldProcessTransaction(tx, platform, walletAddress)) {
+      if (shouldProcess) {
+        console.log(`  Processing ${tx.signature.substring(0, 8)}... (${platform})`);
         const swap = this.createSwapFromRawTransfers(tx, walletAddress, platform);
 
         if (swap && swap.solAmount > 0.00001) {
           swaps.push(swap);
+          console.log(`    ✅ Created ${swap.direction}: ${swap.tokenAmount.toFixed(4)} tokens @ ${swap.pricePerToken.toFixed(8)} SOL/token`);
         } else {
-          const reason = !swap ? 'Failed to create swap' : 'Trivial SOL amount';
-          skippedTransactions.push({
-            signature: tx.signature,
-            reason,
-            details: { type: tx.type, source: tx.source, platform }
-          });
+          const reason = !swap ? 'createSwapFromRawTransfers returned null' : `SOL amount too small: ${swap.solAmount}`;
+          debugInfo.push({signature: tx.signature, reason, platform, source: tx.source || 'N/A'});
+          console.log(`    ❌ ${reason}`);
         }
       } else {
-        skippedTransactions.push({
-          signature: tx.signature,
-          reason: 'Not identified as processable swap',
-          details: { type: tx.type, source: tx.source, platform }
-        });
+        debugInfo.push({signature: tx.signature, reason: 'shouldProcessTransaction = false', platform, source: tx.source || 'N/A'});
       }
     }
     
-    console.log(`Processed ${swaps.length} swaps, skipped ${skippedTransactions.length} transactions`);
+    console.log(`\n✅ Successfully processed ${swaps.length} swaps`);
+    console.log(`❌ Failed to process ${debugInfo.length} transactions`);
     
-    // Log platform breakdown
-    const platformBreakdown = new Map<string, number>();
-    swaps.forEach(swap => {
-      const count = platformBreakdown.get(swap.platform) || 0;
-      platformBreakdown.set(swap.platform, count + 1);
-    });
-    
-    console.log('Platform breakdown:', Object.fromEntries(platformBreakdown));
+    // Log failure reasons for debugging
+    if (debugInfo.length > 0) {
+      console.log('\n=== FAILURE ANALYSIS ===');
+      const reasonCounts = new Map<string, number>();
+      debugInfo.forEach(info => {
+        const count = reasonCounts.get(info.reason) || 0;
+        reasonCounts.set(info.reason, count + 1);
+      });
+      
+      for (const [reason, count] of reasonCounts) {
+        console.log(`${reason}: ${count} transactions`);
+      }
+    }
     
     return swaps;
   }
 
+  // Rest of your existing methods remain the same...
+  // (isLikelySwap, createSwapFromRawTransfers, analyzeTradeDirection, etc.)
+
+  private isLikelySwap(tx: ParsedTransaction, walletAddress: string): boolean {
+    const tokenTransfers = tx.tokenTransfers || [];
+    const userTokenTransfers = tokenTransfers.filter(t => 
+      t.toUserAccount === walletAddress || t.fromUserAccount === walletAddress
+    );
+
+    // Must have at least one token transfer involving the user
+    if (userTokenTransfers.length === 0) {
+      return false;
+    }
+
+    // Check if user is both sending and receiving tokens (typical swap pattern)
+    const userReceives = userTokenTransfers.filter(t => t.toUserAccount === walletAddress);
+    const userSends = userTokenTransfers.filter(t => t.fromUserAccount === walletAddress);
+
+    // Pattern 1: User sends one token and receives another (classic swap)
+    if (userSends.length > 0 && userReceives.length > 0) {
+      const sentMints = new Set(userSends.map(t => t.mint));
+      const receivedMints = new Set(userReceives.map(t => t.mint));
+      
+      // Remove WSOL from consideration as it's often used for routing
+      const wsolMint = 'So11111111111111111111111111111111111111112';
+      sentMints.delete(wsolMint);
+      receivedMints.delete(wsolMint);
+      
+      // If trading different tokens, likely a swap
+      if (sentMints.size > 0 && receivedMints.size > 0) {
+        const hasDifferentTokens = [...sentMints].some(mint => !receivedMints.has(mint)) ||
+                                  [...receivedMints].some(mint => !sentMints.has(mint));
+        if (hasDifferentTokens) {
+          return true;
+        }
+      }
+    }
+
+    // Pattern 2: User receives tokens and sends SOL (buy pattern)
+    if (userReceives.length > 0 && userSends.length === 0) {
+      const receivedNonWsol = userReceives.filter(t => t.mint !== 'So11111111111111111111111111111111111111112');
+      if (receivedNonWsol.length > 0) {
+        return true;
+      }
+    }
+
+    // Pattern 3: User sends tokens and receives SOL (sell pattern)
+    if (userSends.length > 0 && userReceives.length === 0) {
+      const sentNonWsol = userSends.filter(t => t.mint !== 'So11111111111111111111111111111111111111112');
+      if (sentNonWsol.length > 0) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // Enhanced createSwapFromRawTransfers with debugging
+
   private createSwapFromRawTransfers(tx: ParsedTransaction, walletAddress: string, platform: string): Swap | null {
-    const tradeInfo = this.analyzeTradeDirection(tx, walletAddress);
-    if (!tradeInfo || tradeInfo.solAmount === 0 || tradeInfo.tokenAmount === 0) {
+    console.log(`    Creating swap from transaction ${tx.signature.substring(0, 8)}...`);
+    console.log(`    Platform: ${platform}, Source: ${tx.source}, Type: ${tx.type}`);
+    
+    const tradeInfo = this.analyzeTradeDirectionDebug(tx, walletAddress);
+    
+    if (!tradeInfo) {
+      console.log(`    ❌ Failed to analyze trade direction`);
       return null;
     }
+    
+    if (tradeInfo.solAmount === 0 || tradeInfo.tokenAmount === 0) {
+      console.log(`    ❌ Invalid amounts: SOL=${tradeInfo.solAmount}, Token=${tradeInfo.tokenAmount}`);
+      return null;
+    }
+    
+    console.log(`    ✅ Creating ${tradeInfo.direction}: ${tradeInfo.tokenAmount.toFixed(6)} tokens for ${tradeInfo.solAmount.toFixed(6)} SOL`);
     
     return {
       signature: tx.signature,
       timestamp: tx.blockTime,
-      fee: tx.fee,
+      fee: tx.fee || 0,
       tokenMint: tradeInfo.tokenMint,
       tokenAmount: tradeInfo.tokenAmount,
       solAmount: tradeInfo.solAmount,
@@ -363,26 +322,48 @@ export class SwapProcessorService {
     };
   }
 
+  // Also make sure your isSolOrWsol method is correct:
   private isSolOrWsol(mint: string): boolean {
-    return mint === 'So11111111111111111111111111111111111111112';
+    const WSOL_MINT = 'So11111111111111111111111111111111111111112';
+    return mint === WSOL_MINT;
   }
 
-  // Enhanced trade direction analysis
-  private analyzeTradeDirection(tx: ParsedTransaction, walletAddress: string): {
+  // Enhanced analyzeTradeDirection with detailed debugging
+  private analyzeTradeDirectionDebug(tx: ParsedTransaction, walletAddress: string): {
     direction: 'buy' | 'sell';
     tokenMint: string;
     tokenAmount: number;
     solAmount: number;
   } | null {
+    
+    console.log(`      Analyzing trade direction for ${tx.signature.substring(0, 8)}...`);
+    
     const tokenChanges = new Map<string, number>();
     let solChange = 0;
+    
+    // Debug token transfers
+    const tokenTransfers = tx.tokenTransfers || [];
+    console.log(`      Token transfers: ${tokenTransfers.length}`);
+    
+    tokenTransfers.forEach((t, index) => {
+      console.log(`        Transfer ${index + 1}: ${t.mint.substring(0, 8)}... amount=${t.tokenAmount}`);
+      console.log(`          From: ${t.fromUserAccount.substring(0, 8)}...`);
+      console.log(`          To: ${t.toUserAccount.substring(0, 8)}...`);
+      console.log(`          User is: ${t.fromUserAccount === walletAddress ? 'SENDER' : t.toUserAccount === walletAddress ? 'RECEIVER' : 'NOT_INVOLVED'}`);
+    });
 
     // Calculate token changes (excluding SOL/WSOL)
-    (tx.tokenTransfers || []).forEach(t => {
+    tokenTransfers.forEach(t => {
       if (this.isSolOrWsol(t.mint)) {
         const amount = this.normalizeTokenAmount(t);
-        if (t.toUserAccount === walletAddress) solChange += amount;
-        if (t.fromUserAccount === walletAddress) solChange -= amount;
+        if (t.toUserAccount === walletAddress) {
+          solChange += amount;
+          console.log(`        User RECEIVED ${amount.toFixed(6)} WSOL`);
+        }
+        if (t.fromUserAccount === walletAddress) {
+          solChange -= amount;
+          console.log(`        User SENT ${amount.toFixed(6)} WSOL`);
+        }
         return;
       }
 
@@ -390,25 +371,61 @@ export class SwapProcessorService {
       const currentChange = tokenChanges.get(t.mint) || 0;
       
       let netChange = 0;
-      if (t.toUserAccount === walletAddress) netChange = amount;
-      if (t.fromUserAccount === walletAddress) netChange = -amount;
+      if (t.toUserAccount === walletAddress) {
+        netChange = amount;
+        console.log(`        User RECEIVED ${amount.toFixed(6)} of ${t.mint.substring(0, 8)}...`);
+      }
+      if (t.fromUserAccount === walletAddress) {
+        netChange = -amount;
+        console.log(`        User SENT ${amount.toFixed(6)} of ${t.mint.substring(0, 8)}...`);
+      }
       
       tokenChanges.set(t.mint, currentChange + netChange);
     });
 
-    // Calculate native SOL changes
-    (tx.nativeTransfers || []).forEach(t => {
+    // Debug native transfers
+    const nativeTransfers = tx.nativeTransfers || [];
+    console.log(`      Native transfers: ${nativeTransfers.length}`);
+    
+    nativeTransfers.forEach((t, index) => {
       const amount = t.amount / 1e9;
-      if (t.toUserAccount === walletAddress) solChange += amount;
-      if (t.fromUserAccount === walletAddress) solChange -= amount;
+      console.log(`        Native ${index + 1}: ${amount.toFixed(6)} SOL`);
+      console.log(`          From: ${t.fromUserAccount.substring(0, 8)}...`);
+      console.log(`          To: ${t.toUserAccount.substring(0, 8)}...`);
+      
+      if (t.toUserAccount === walletAddress) {
+        solChange += amount;
+        console.log(`          User RECEIVED ${amount.toFixed(6)} SOL`);
+      }
+      if (t.fromUserAccount === walletAddress) {
+        solChange -= amount;
+        console.log(`          User SENT ${amount.toFixed(6)} SOL`);
+      }
     });
+
+    console.log(`      Total SOL change: ${solChange.toFixed(6)}`);
+    console.log(`      Token changes:`, Object.fromEntries(
+      Array.from(tokenChanges.entries()).map(([mint, change]) => [
+        mint.substring(0, 8) + '...', 
+        change.toFixed(6)
+      ])
+    ));
 
     // Filter out tokens with no significant net change
     const significantChanges = new Map([...tokenChanges.entries()].filter(([_, change]) => 
       Math.abs(change) > 0.000001
     ));
 
-    if (significantChanges.size === 0 || Math.abs(solChange) < 0.00001) {
+    console.log(`      Significant token changes: ${significantChanges.size}`);
+    console.log(`      Absolute SOL change: ${Math.abs(solChange).toFixed(6)}`);
+
+    if (significantChanges.size === 0) {
+      console.log(`      ❌ No significant token changes detected`);
+      return null;
+    }
+    
+    if (Math.abs(solChange) < 0.00001) {
+      console.log(`      ❌ No significant SOL change detected`);
       return null;
     }
 
@@ -421,11 +438,36 @@ export class SwapProcessorService {
     const tokenAmount = Math.abs(mainTokenNetAmount);
     const solAmount = Math.abs(solChange);
 
+    console.log(`      Main token: ${mainTokenMint.substring(0, 8)}...`);
+    console.log(`      Direction: ${direction.toUpperCase()}`);
+    console.log(`      Token amount: ${tokenAmount.toFixed(6)}`);
+    console.log(`      SOL amount: ${solAmount.toFixed(6)}`);
+
     // Validate the trade makes sense
-    if (solAmount < 0.00001 || tokenAmount < 0.000001) {
+    if (solAmount < 0.00001) {
+      console.log(`      ❌ SOL amount too small: ${solAmount}`);
+      return null;
+    }
+    
+    if (tokenAmount < 0.000001) {
+      console.log(`      ❌ Token amount too small: ${tokenAmount}`);
       return null;
     }
 
+    // Price sanity check
+    const pricePerToken = solAmount / tokenAmount;
+    console.log(`      Price per token: ${pricePerToken.toFixed(8)} SOL`);
+    
+    if (pricePerToken > 100) {
+      console.log(`      ⚠️  High price detected: ${pricePerToken} SOL/token`);
+    }
+    
+    if (pricePerToken < 0.00000001) {
+      console.log(`      ⚠️  Very low price detected: ${pricePerToken} SOL/token`);
+    }
+
+    console.log(`      ✅ Trade analysis successful`);
+    
     return {
       direction,
       tokenMint: mainTokenMint,
@@ -434,7 +476,24 @@ export class SwapProcessorService {
     };
   }
 
+  // And normalizeTokenAmount:
   private normalizeTokenAmount(tokenTransfer: any): number {
-    return Math.abs(parseFloat(tokenTransfer.tokenAmount));
+    // Handle both old and new format
+    if (typeof tokenTransfer.tokenAmount === 'number') {
+      return Math.abs(tokenTransfer.tokenAmount);
+    }
+    
+    if (typeof tokenTransfer.tokenAmount === 'string') {
+      return Math.abs(parseFloat(tokenTransfer.tokenAmount));
+    }
+    
+    // Handle rawTokenAmount format
+    if (tokenTransfer.rawTokenAmount && tokenTransfer.rawTokenAmount.tokenAmount) {
+      const amount = parseFloat(tokenTransfer.rawTokenAmount.tokenAmount);
+      const decimals = tokenTransfer.rawTokenAmount.decimals || 0;
+      return Math.abs(amount / Math.pow(10, decimals));
+    }
+    
+    return 0;
   }
 } 

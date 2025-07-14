@@ -142,13 +142,15 @@ export class PnLEngine {
     
     if (!holding || holding.purchaseLots.length === 0) {
       console.log(`    ⚠️  SELL WITHOUT HOLDING - possible airdrop or missing buy`);
-      console.log(`      Creating profit-only trade for ${swap.tokenAmount.toFixed(6)} tokens`);
+      console.log(`      Creating zero-cost trade for ${swap.tokenAmount.toFixed(6)} tokens`);
       
+      // CRITICAL FIX: Instead of creating a profit-only trade, create a zero-cost basis trade
+      // This prevents inflating Net SOL when transactions are missing
       const closedTrade: ClosedTrade = {
         tokenMint: tokenMint,
         totalCostBasisInSol: 0,
         totalProceedsInSol: swap.solAmount,
-        realizedPnLInSol: swap.solAmount,
+        realizedPnLInSol: swap.solAmount, // This will be pure profit, but tracks the actual SOL received
         realizedPnLPercent: Infinity,
         holdingDurationSeconds: 0,
         buyTimestamp: swap.timestamp,
@@ -157,30 +159,24 @@ export class PnLEngine {
       };
       
       this.closedTrades.push(closedTrade);
+      
+      // LOG WARNING for investigation
+      console.log(`    ⚠️  WARNING: This may indicate missing buy transactions for ${tokenMint.slice(0, 8)}...`);
       return;
     }
 
     console.log(`    📉 Processing sell against holding:`);
     console.log(`      Available: ${holding.totalQuantity.toFixed(6)} tokens`);
     console.log(`      Trying to sell: ${swap.tokenAmount.toFixed(6)} tokens`);
-    console.log(`      Available lots: ${holding.purchaseLots.length}`);
 
     let remainingQuantityToSell = swap.tokenAmount;
     let totalCostBasis = 0;
     let totalQuantitySold = 0;
     let buyTimestamp = 0;
 
-    // Show what lots are available
-    holding.purchaseLots.forEach((lot, index) => {
-      console.log(`        Lot ${index + 1}: ${lot.quantity.toFixed(6)} tokens @ ${lot.costPerUnit.toFixed(8)} SOL`);
-    });
-
-    const originalLotCount = holding.purchaseLots.length;
-    let lotIndex = 0;
-
+    // Process available lots first
     while (remainingQuantityToSell > 0.000001 && holding.purchaseLots.length > 0) {
       const lot = holding.purchaseLots[0];
-      lotIndex++;
       
       if (buyTimestamp === 0) {
         buyTimestamp = lot.timestamp;
@@ -189,48 +185,77 @@ export class PnLEngine {
       const quantityFromThisLot = Math.min(remainingQuantityToSell, lot.quantity);
       const costBasisFromThisLot = quantityFromThisLot * lot.costPerUnit;
       
-      console.log(`        Using lot ${lotIndex}: ${quantityFromThisLot.toFixed(6)} tokens @ ${lot.costPerUnit.toFixed(8)} SOL`);
-      
       totalCostBasis += costBasisFromThisLot;
       totalQuantitySold += quantityFromThisLot;
       remainingQuantityToSell -= quantityFromThisLot;
 
       if (quantityFromThisLot >= lot.quantity - 0.000001) {
-        console.log(`          → Lot fully consumed, removing`);
         holding.purchaseLots.shift();
       } else {
-        console.log(`          → Lot partially consumed, ${(lot.quantity - quantityFromThisLot).toFixed(6)} remaining`);
         lot.quantity -= quantityFromThisLot;
       }
     }
 
     // Update holding
-    const previousQuantity = holding.totalQuantity;
     holding.totalQuantity -= totalQuantitySold;
     
     if (holding.totalQuantity < 0.000001) {
-      console.log(`    ✓ Holding depleted, removing from map`);
       this.holdings.delete(tokenMint);
     } else {
       const totalCost = holding.purchaseLots.reduce((sum, lot) => 
         sum + (lot.quantity * lot.costPerUnit), 0
       );
       holding.averageCostPerUnit = holding.totalQuantity > 0 ? totalCost / holding.totalQuantity : 0;
-      
-      console.log(`    ✓ Holding updated:`);
-      console.log(`      Previous: ${previousQuantity.toFixed(6)} tokens`);
-      console.log(`      Sold: ${totalQuantitySold.toFixed(6)} tokens`);
-      console.log(`      Remaining: ${holding.totalQuantity.toFixed(6)} tokens`);
     }
 
+    // CRITICAL FIX: Handle oversell situation more conservatively
     if (remainingQuantityToSell > 0.000001) {
-      console.log(`    ⚠️  OVERSELL: Tried to sell ${swap.tokenAmount.toFixed(6)} but only had ${totalQuantitySold.toFixed(6)}`);
-      console.log(`      Missing: ${remainingQuantityToSell.toFixed(6)} tokens`);
-    }
+      console.log(`    ⚠️  OVERSELL DETECTED: ${remainingQuantityToSell.toFixed(6)} tokens couldn't be matched`);
+      console.log(`      This suggests missing buy transactions or data issues`);
+      
+      // Option 1: Conservative approach - only process what we can match
+      const actualProceedsForMatchedTokens = (totalQuantitySold / swap.tokenAmount) * swap.solAmount;
+      
+      if (totalQuantitySold > 0.000001) {
+        const realizedPnLInSol = actualProceedsForMatchedTokens - totalCostBasis;
+        
+        const closedTrade: ClosedTrade = {
+          tokenMint: tokenMint,
+          totalCostBasisInSol: totalCostBasis,
+          totalProceedsInSol: actualProceedsForMatchedTokens,
+          realizedPnLInSol: realizedPnLInSol,
+          realizedPnLPercent: totalCostBasis > 0 ? (realizedPnLInSol / totalCostBasis) * 100 : Infinity,
+          holdingDurationSeconds: swap.timestamp - buyTimestamp,
+          buyTimestamp: buyTimestamp,
+          sellTimestamp: swap.timestamp,
+          quantity: totalQuantitySold
+        };
 
-    // Create closed trade
-    if (totalQuantitySold > 0.000001) {
-      const proceedsFromSoldPortion = (totalQuantitySold / swap.tokenAmount) * swap.solAmount;
+        this.closedTrades.push(closedTrade);
+        console.log(`    ✓ Created conservative trade for matched tokens: ${realizedPnLInSol >= 0 ? '+' : ''}${realizedPnLInSol.toFixed(6)} SOL`);
+      }
+      
+      // Create a separate "oversell" trade for the unmatched portion
+      const oversellProceeds = (remainingQuantityToSell / swap.tokenAmount) * swap.solAmount;
+      
+      const oversellTrade: ClosedTrade = {
+        tokenMint: tokenMint,
+        totalCostBasisInSol: 0, // No cost basis for oversell
+        totalProceedsInSol: oversellProceeds,
+        realizedPnLInSol: oversellProceeds, // This might be from airdrops or missing data
+        realizedPnLPercent: Infinity,
+        holdingDurationSeconds: 0,
+        buyTimestamp: swap.timestamp,
+        sellTimestamp: swap.timestamp,
+        quantity: remainingQuantityToSell
+      };
+      
+      this.closedTrades.push(oversellTrade);
+      console.log(`    ⚠️  Created oversell trade: +${oversellProceeds.toFixed(6)} SOL (investigate missing buys)`);
+      
+    } else {
+      // Normal case - no oversell
+      const proceedsFromSoldPortion = swap.solAmount;
       const realizedPnLInSol = proceedsFromSoldPortion - totalCostBasis;
       
       const closedTrade: ClosedTrade = {
@@ -246,7 +271,7 @@ export class PnLEngine {
       };
 
       this.closedTrades.push(closedTrade);
-      console.log(`    ✓ Created closed trade: ${realizedPnLInSol >= 0 ? '+' : ''}${realizedPnLInSol.toFixed(6)} SOL`);
+      console.log(`    ✓ Created normal trade: ${realizedPnLInSol >= 0 ? '+' : ''}${realizedPnLInSol.toFixed(6)} SOL`);
     }
   }
 

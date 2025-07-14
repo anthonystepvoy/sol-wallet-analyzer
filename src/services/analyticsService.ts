@@ -6,12 +6,54 @@ import {
   WalletAnalysis 
 } from '../types';
 import { PriceService } from './priceService';
+import { PnLEngine } from './pnlEngine';
 
 export class AnalyticsService {
   private priceService: PriceService;
 
   constructor(priceService: PriceService) {
     this.priceService = priceService;
+  }
+
+  /**
+   * Filter out problematic tokens before PnL calculation
+   * Professional tools exclude tokens with oversell situations
+   */
+  private filterValidTokensForPnL(swaps: Swap[]): Swap[] {
+    const tokenSummary = new Map<string, { totalBought: number, totalSold: number }>();
+    
+    // Calculate totals for each token
+    for (const swap of swaps) {
+      const summary = tokenSummary.get(swap.tokenMint) || { totalBought: 0, totalSold: 0 };
+      
+      if (swap.direction === 'buy') {
+        summary.totalBought += swap.tokenAmount;
+      } else {
+        summary.totalSold += swap.tokenAmount;
+      }
+      
+      tokenSummary.set(swap.tokenMint, summary);
+    }
+    
+    // Identify tokens to exclude (where sold > bought)
+    const excludedTokens = new Set<string>();
+    
+    for (const [tokenMint, summary] of tokenSummary) {
+      if (summary.totalSold > summary.totalBought * 1.001) { // Allow 0.1% tolerance
+        excludedTokens.add(tokenMint);
+        console.log(`⚠️  EXCLUDING TOKEN ${tokenMint.slice(0, 8)}... from PnL calculation`);
+        console.log(`    Bought: ${summary.totalBought.toFixed(6)}, Sold: ${summary.totalSold.toFixed(6)}`);
+        console.log(`    Oversell: ${(summary.totalSold - summary.totalBought).toFixed(6)} tokens`);
+      }
+    }
+    
+    // Filter out swaps for excluded tokens
+    const validSwaps = swaps.filter(swap => !excludedTokens.has(swap.tokenMint));
+    
+    console.log(`Excluded ${excludedTokens.size} problematic tokens from PnL calculation`);
+    console.log(`Processing ${validSwaps.length} swaps (was ${swaps.length})`);
+    
+    return validSwaps;
   }
 
   /**
@@ -22,19 +64,28 @@ export class AnalyticsService {
     closedTrades: ClosedTrade[],
     openHoldings: Holding[]
   ): Promise<WalletAnalysis> {
+    
+    // CRITICAL: Filter out problematic tokens BEFORE processing
+    const validSwaps = this.filterValidTokensForPnL(swaps);
+    
+    // Re-run PnL calculation with valid swaps only
+    const pnlEngine = new PnLEngine();
+    const { closedTrades: validClosedTrades, openHoldings: validOpenHoldings } = 
+      pnlEngine.processSwapsForPnL(validSwaps);
+    
     // Only filter out dust, not USDC
-    const filteredOpenHoldings = openHoldings.filter(
+    const filteredOpenHoldings = validOpenHoldings.filter(
       h => h.totalQuantity > 0.00001
     );
 
-    const highLevelStats = this.calculateHighLevelStats(closedTrades, filteredOpenHoldings);
+    const highLevelStats = this.calculateHighLevelStats(validClosedTrades, filteredOpenHoldings);
     const holdingsValue = await this.calculateHoldingsValue(filteredOpenHoldings);
-    const pnlMetrics = this.calculatePnLMetrics(closedTrades);
-    const tradingMetrics = this.calculateTradingMetrics(swaps, closedTrades);
-    const capitalFlow = this.calculateCapitalFlow(closedTrades);
-    const feeAnalysis = this.calculateFeeAnalysis(swaps);
-    const pnlDistribution = this.calculatePnLDistribution(closedTrades);
-    const holdingDurationDistribution = this.calculateHoldingDurationDistribution(closedTrades);
+    const pnlMetrics = this.calculatePnLMetrics(validClosedTrades);
+    const tradingMetrics = this.calculateTradingMetrics(validSwaps, validClosedTrades);
+    const capitalFlow = this.calculateCapitalFlow(validClosedTrades);
+    const feeAnalysis = this.calculateFeeAnalysis(validSwaps);
+    const pnlDistribution = this.calculatePnLDistribution(validClosedTrades);
+    const holdingDurationDistribution = this.calculateHoldingDurationDistribution(validClosedTrades);
 
     return {
       ...highLevelStats,
@@ -45,9 +96,9 @@ export class AnalyticsService {
       ...feeAnalysis,
       pnlDistribution,
       holdingDurationDistribution,
-      closedTrades,
+      closedTrades: validClosedTrades,
       openHoldings: filteredOpenHoldings,
-      allSwaps: swaps
+      allSwaps: validSwaps
     };
   }
 
