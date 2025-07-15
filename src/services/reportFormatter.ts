@@ -1,10 +1,11 @@
 import { WalletAnalysis } from '../types';
+import { ConfidenceScore } from './confidenceScorer';
 
 export class ReportFormatter {
   /**
    * Format wallet analysis into a human-readable report
    */
-  formatWalletAnalysis(analysis: WalletAnalysis, walletAddress: string, daysBack: number): string {
+  formatWalletAnalysis(analysis: WalletAnalysis, walletAddress: string, daysBack: number, confidenceScore?: ConfidenceScore): string {
     const report = [
       this.formatHeader(walletAddress, daysBack),
       this.formatTradingPlatforms(analysis),
@@ -15,10 +16,11 @@ export class ReportFormatter {
       this.formatCapitalFlow(analysis),
       this.formatDistributions(analysis),
       this.formatFeeAnalysis(analysis),
+      confidenceScore ? this.formatConfidenceScore(confidenceScore) : '',
       this.formatDetailedTrades(analysis),
       '='.repeat(60), // Add a separator
       this.formatTokenPnlSummary(analysis) // Add the new summary section
-    ].join('\n\n');
+    ].filter(section => section.length > 0).join('\n\n');
 
     return report;
   }
@@ -77,9 +79,20 @@ Max: ${getPercentile(pnlValues, 100).toFixed(4)} SOL | ${getPercentile(pnlPercen
   }
 
   private formatCapitalFlow(analysis: WalletAnalysis): string {
-    return `📤 Sol Spent Buying Tokens (C): ${analysis.solSpentBuyingTokens.toFixed(2)}
-📥 Sol Received Selling Tokens (D): ${analysis.solReceivedSellingTokens.toFixed(2)}
-📊 Net Sol (D-C): ${(analysis.solReceivedSellingTokens - analysis.solSpentBuyingTokens).toFixed(2)}`;
+    const solSpent = analysis.solSpentBuyingTokens;
+    const solReceived = analysis.solReceivedSellingTokens;
+    const tokenHoldings = analysis.tokenHoldingsInSol;
+    
+    // CRITICAL: The reference bot appears to include current token holdings
+    // in their Net SOL calculation, not just realized trades
+    const netSolRealized = solReceived - solSpent;
+    const netSolTotal = netSolRealized + tokenHoldings;
+    
+    return `📤 Sol Spent Buying Tokens (C): ${solSpent.toFixed(2)}
+📥 Sol Received Selling Tokens (D): ${solReceived.toFixed(2)}
+💎 Current Token Holdings: ${tokenHoldings.toFixed(2)} SOL
+📊 Net Sol (Realized): ${netSolRealized.toFixed(2)}
+📊 Net Sol (Total): ${netSolTotal.toFixed(2)}`;
   }
 
   private formatFeeAnalysis(analysis: WalletAnalysis): string {
@@ -151,6 +164,46 @@ ${filteredOpenHoldings.length > 0 ? `\n🔵 OPEN POSITIONS (${filteredOpenHoldin
 ${filteredOpenHoldings.map(holding => 
   `• ${holding.tokenMint.slice(0, 8)}... - ${holding.totalQuantity.toFixed(2)} tokens (avg cost: ${holding.averageCostPerUnit.toFixed(6)} SOL)`
 ).join('\n')}` : ''}`;
+  }
+
+  private formatConfidenceScore(confidenceScore: ConfidenceScore): string {
+    const getScoreColor = (score: number) => {
+      if (score >= 85) return '🟢';
+      if (score >= 70) return '🟡';
+      if (score >= 55) return '🟠';
+      return '🔴';
+    };
+
+    const getScoreEmoji = (score: number) => {
+      if (score >= 85) return '✅';
+      if (score >= 70) return '⚠️';
+      return '❌';
+    };
+
+    let report = `🎯 CONFIDENCE ASSESSMENT
+${getScoreColor(confidenceScore.overall)} Overall Confidence: ${confidenceScore.overall}% ${getScoreEmoji(confidenceScore.overall)}
+
+📊 Score Breakdown:
+• Data Quality: ${confidenceScore.breakdown.dataQuality}%
+• Calculation Logic: ${confidenceScore.breakdown.calculationLogic}%
+• Reasonableness: ${confidenceScore.breakdown.reasonableness}%
+• Consistency: ${confidenceScore.breakdown.consistency}%`;
+
+    if (confidenceScore.warnings.length > 0) {
+      report += `\n\n⚠️ Warnings:`;
+      confidenceScore.warnings.forEach(warning => {
+        report += `\n• ${warning}`;
+      });
+    }
+
+    if (confidenceScore.recommendations.length > 0) {
+      report += `\n\n💡 Recommendations:`;
+      confidenceScore.recommendations.forEach(rec => {
+        report += `\n• ${rec}`;
+      });
+    }
+
+    return report;
   }
 
   private formatTokenPnlSummary(analysis: WalletAnalysis): string {

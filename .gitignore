@@ -8,4 +8,31 @@ yarn-error.log*
 dist/
 build/
 coverage/
-.nyc_output/ 
+.nyc_output/
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+*.temp
+.tmp/
+.temp/
+.tsbuildinfo
+*.tsbuildinfo
+
+# Cache directories
+.cache/
+node_modules/.cache/
+.parcel-cache/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini 

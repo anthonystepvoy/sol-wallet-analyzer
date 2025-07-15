@@ -144,14 +144,14 @@ export class PnLEngine {
       console.log(`    ⚠️  SELL WITHOUT HOLDING - possible airdrop or missing buy`);
       console.log(`      Creating zero-cost trade for ${swap.tokenAmount.toFixed(6)} tokens`);
       
-      // CRITICAL FIX: Instead of creating a profit-only trade, create a zero-cost basis trade
+      // IMPROVED FIX: Instead of creating artificial profit, exclude these trades from PnL
       // This prevents inflating Net SOL when transactions are missing
       const closedTrade: ClosedTrade = {
         tokenMint: tokenMint,
         totalCostBasisInSol: 0,
         totalProceedsInSol: swap.solAmount,
-        realizedPnLInSol: swap.solAmount, // This will be pure profit, but tracks the actual SOL received
-        realizedPnLPercent: Infinity,
+        realizedPnLInSol: 0, // Changed from swap.solAmount to 0 to avoid artificial profit
+        realizedPnLPercent: 0,
         holdingDurationSeconds: 0,
         buyTimestamp: swap.timestamp,
         sellTimestamp: swap.timestamp,
@@ -242,8 +242,8 @@ export class PnLEngine {
         tokenMint: tokenMint,
         totalCostBasisInSol: 0, // No cost basis for oversell
         totalProceedsInSol: oversellProceeds,
-        realizedPnLInSol: oversellProceeds, // This might be from airdrops or missing data
-        realizedPnLPercent: Infinity,
+        realizedPnLInSol: 0, // Changed from oversellProceeds to 0 to avoid artificial profit
+        realizedPnLPercent: 0,
         holdingDurationSeconds: 0,
         buyTimestamp: swap.timestamp,
         sellTimestamp: swap.timestamp,

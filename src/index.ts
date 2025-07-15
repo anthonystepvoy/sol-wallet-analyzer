@@ -1,3 +1,17 @@
+#!/usr/bin/env ts-node
+
+/**
+ * Wallet Analyzer - Main Entry Point
+ * 
+ * Analyzes specific Solana wallet addresses for trading performance.
+ * Provides detailed insights including PnL, win rates, and trading patterns.
+ * 
+ * Usage: 
+ *   Interactive: npx ts-node src/index.ts
+ *   Single wallet: npx ts-node src/index.ts <wallet_address> [days]
+ *   npm scripts: npm start <wallet_address> [days]
+ */
+
 import dotenv from 'dotenv';
 import { WalletAnalyzer } from './services/walletAnalyzer';
 
@@ -8,6 +22,7 @@ async function main() {
   // Configuration
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
   const heliusApiKey = process.env.HELIUS_API_KEY;
+  const blockDaemonApiKey = process.env.BLOCK_DAEMON_KEY;
   const jupiterApiKey = process.env.JUPITER_API_KEY || '';
 
   if (!heliusApiKey) {
@@ -16,12 +31,56 @@ async function main() {
     process.exit(1);
   }
 
+  // Display API configuration
+  const instantNodesUrl = process.env.INSTANTNODES_RPC_URL;
+  const heliusUrl = process.env.HELIUS_RPC_URL;
+  
+  if (instantNodesUrl && heliusUrl && blockDaemonApiKey) {
+    console.log('🚀 Triple API mode enabled:');
+    console.log('   1️⃣ Primary: InstantNodes (signatures)');
+    console.log('   2️⃣ Secondary: Helius (transaction parsing)');
+    console.log('   3️⃣ Fallback: BlockDaemon (validation)');
+  } else if (instantNodesUrl && heliusUrl) {
+    console.log('🚀 Dual API mode enabled:');
+    console.log('   1️⃣ Primary: InstantNodes (signatures)');
+    console.log('   2️⃣ Secondary: Helius (transaction parsing)');
+  } else if (blockDaemonApiKey) {
+    console.log('🚀 BlockDaemon API key detected - dual API mode enabled');
+  }
+
   const args = process.argv.slice(2);
-  let daysBack = args[0] ? parseInt(args[0], 10) : 15;
+  const walletFromArgs = args[0];
+  let daysBack = args[1] ? parseInt(args[1], 10) : 15;
 
-  // Create analyzer instance once
-  const analyzer = new WalletAnalyzer(rpcUrl, heliusApiKey, jupiterApiKey);
+  // Create analyzer instance once with silent mode enabled by default
+  const analyzer = new WalletAnalyzer(rpcUrl, heliusApiKey, jupiterApiKey, blockDaemonApiKey, true);
 
+  // If wallet provided as argument, run once and exit
+  if (walletFromArgs) {
+    try {
+      console.log('\n🚀 Solana Wallet Analyzer');
+      const walletAddress = walletFromArgs;
+
+      console.log(`📊 Analyzing wallet: ${walletAddress}`);
+      console.log(`📅 Time period: Last ${daysBack} days`);
+      console.log('');
+
+      // Perform analysis
+      const { analysis, report } = await analyzer.analyzeWallet(walletAddress, daysBack);
+
+      // Display results
+      console.log('\n' + '='.repeat(60));
+      console.log(report);
+      console.log('='.repeat(60));
+      process.exit(0);
+
+    } catch (error) {
+      console.error('❌ Analysis failed:', error);
+      process.exit(1);
+    }
+  }
+
+  // Interactive mode
   while (true) {
     try {
       console.log('\n🚀 Solana Wallet Analyzer');

@@ -32,68 +32,54 @@ export class SwapProcessorService {
     };
   }
 
-  // Enhanced platform detection with better Jupiter heuristics
+  // Make platform detection more inclusive
   private extractPlatformEnhanced(tx: ParsedTransaction, walletAddress: string): string {
     const rawSource = tx.source || '';
     const sourceStr = rawSource.toLowerCase();
     
-    console.log(`Analyzing TX ${tx.signature.substring(0, 8)}...`);
-    console.log(`  Source: "${tx.source}", Type: "${tx.type}"`);
+    // Map more source types to known platforms
+    const sourceMapping: Record<string, string> = {
+      'pump_amm': 'pumpfun',
+      'pump_fun': 'pumpfun', 
+      'pumpfun': 'pumpfun',
+      'raydium': 'raydium',
+      'raydiumv4': 'raydium',
+      'raydiumcpmm': 'raydium',
+      'jupiter': 'jupiter',
+      'orca': 'orca',
+      'meteora': 'meteora'
+    };
     
-    // PRIORITY 1: Direct Jupiter source detection (enhanced patterns)
-    const jupiterPatterns = [
-      'jupiter', 'jup', 'jupiter v6', 'jupiter-v6', 'jupiter_v6',
-      'jupiter aggregator', 'jupiter v4', 'jupiter v3', 'jupiter v2'
-    ];
+    // Check source mapping first
+    for (const [source, platform] of Object.entries(sourceMapping)) {
+      if (sourceStr.includes(source)) {
+        console.log(`  ✓ Platform from source mapping: ${platform}`);
+        return platform;
+      }
+    }
     
-    if (jupiterPatterns.some(pattern => sourceStr.includes(pattern))) {
-      console.log(`  ✓ Jupiter detected from source: "${rawSource}"`);
+    // If Helius marked it as SWAP and no specific source, default to jupiter
+    if (tx.type === 'SWAP' && !sourceStr.includes('pump')) {
+      console.log(`  ✓ Helius SWAP (non-pump) -> jupiter`);
       return 'jupiter';
     }
     
-    // PRIORITY 2: Check if Helius marked it as SWAP type
-    if (tx.type === 'SWAP') {
-      console.log(`  ✓ Helius SWAP type detected -> Jupiter`);
-      return 'jupiter';
-    }
-    
-    // PRIORITY 3: Program ID detection (enhanced Jupiter list)
+    // Check program IDs more thoroughly
     const programIds = (tx.instructions || []).map(i => i.programId).filter(Boolean);
-    const jupiterProgramIds = [
-      'JUP6LkbZbjS1jKKwapdHch49T4B9iFPE9Z1b6dpVRfC', // V6 (most common)
-      'JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB', // V4
-      'JUP2jxvXaqu7NQY1GmNF4m1vodw12LVXYxbFL2uJvfo', // V2
-      'JUP3c2Uh3WA4Ng34tw6kPd2G4C5BB21Xo36Je1s32Ph', // V3
-      'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', // Legacy
-      // Add any new Jupiter program IDs here
-    ];
-    
     for (const pid of programIds) {
-      if (jupiterProgramIds.includes(pid)) {
-        console.log(`  ✓ Jupiter detected from program ID: ${pid}`);
-        return 'jupiter';
-      }
-      
       if (this.platformMapping[pid]) {
-        const normalized = this.platformMapping[pid];
-        console.log(`  ✓ Platform detected from program mapping: ${normalized}`);
-        return normalized;
+        const platform = this.platformMapping[pid];
+        console.log(`  ✓ Platform from program ID: ${platform}`);
+        return platform;
       }
     }
     
-    // PRIORITY 4: Enhanced transaction pattern analysis for Jupiter
-    if (this.detectJupiterByAdvancedPattern(tx, walletAddress)) {
-      console.log(`  ✓ Jupiter detected by advanced pattern analysis`);
+    // If it has token activity and multiple instructions, likely a DEX trade
+    if (this.hasUserTokenActivity(tx, walletAddress) && (tx.instructions || []).length > 2) {
+      console.log(`  ? Complex transaction with tokens -> jupiter`);
       return 'jupiter';
     }
     
-    // PRIORITY 5: If it looks like a swap but no platform identified
-    if (this.isLikelySwap(tx, walletAddress)) {
-      console.log(`  ? Looks like swap -> defaulting to Jupiter`);
-      return 'jupiter';
-    }
-    
-    console.log(`  ✗ No platform detected`);
     return 'unknown';
   }
 
@@ -141,23 +127,35 @@ export class SwapProcessorService {
     return false;
   }
 
-  // More inclusive shouldProcessTransaction method
+  // In your swapProcessor.ts - make detection even more aggressive
 
   private shouldProcessTransaction(tx: ParsedTransaction, platform: string, walletAddress: string): boolean {
-    // Process ANY of these conditions:
-    // 1. Helius marked it as SWAP
-    // 2. Source indicates known DEX platform
-    // 3. Has token transfers involving the user
-    // 4. Platform was detected (not unknown)
+    // EXTREMELY aggressive - process almost anything with token activity
     
     const isHeliusSwap = tx.type === 'SWAP';
+    const isTransfer = tx.type === 'TRANSFER';
     const isKnownPlatform = platform !== 'unknown';
     const hasTokenActivity = this.hasUserTokenActivity(tx, walletAddress);
     const isKnownDexSource = this.isKnownDexSource(tx.source);
+    const hasMultipleInstructions = (tx.instructions || []).length > 1; // Lowered from 2
+    const hasAnyFee = (tx.fee || 0) > 0.0001; // Lowered from 0.001
     
-    console.log(`    Should process? SWAP=${isHeliusSwap}, Platform=${isKnownPlatform}, TokenActivity=${hasTokenActivity}, KnownDEX=${isKnownDexSource}`);
+    // Process if ANY of these conditions are met (much more inclusive):
+    const shouldProcess = 
+      isHeliusSwap || 
+      isKnownPlatform || 
+      isKnownDexSource ||
+      hasTokenActivity || // Process ANY transaction with token activity
+      (isTransfer && hasAnyFee) ||
+      hasMultipleInstructions;
     
-    return isHeliusSwap || isKnownPlatform || hasTokenActivity || isKnownDexSource;
+    if (shouldProcess) {
+      console.log(`    ✅ Processing: SWAP=${isHeliusSwap}, Platform=${isKnownPlatform}, DEX=${isKnownDexSource}, TokenActivity=${hasTokenActivity}`);
+    } else {
+      console.log(`    ❌ Skipping: No qualifying conditions met`);
+    }
+    
+    return shouldProcess;
   }
 
   private hasUserTokenActivity(tx: ParsedTransaction, walletAddress: string): boolean {
@@ -186,9 +184,19 @@ export class SwapProcessorService {
     
     console.log(`Processing ${transactions.length} transactions for wallet ${walletAddress}...`);
     
+    // Count transaction types for debugging
+    const typeCounts: {[key: string]: number} = {};
+    transactions.forEach(tx => {
+      typeCounts[tx.type] = (typeCounts[tx.type] || 0) + 1;
+    });
+    console.log(`Transaction types: ${JSON.stringify(typeCounts)}`);
+    
     for (const tx of transactions) {
+      console.log(`\n  Examining ${tx.signature.substring(0, 8)}... (Type: ${tx.type}, Source: ${tx.source})`);
+      
       if (!tx.blockTime) {
         debugInfo.push({signature: tx.signature, reason: 'No blockTime', platform: 'N/A', source: tx.source || 'N/A'});
+        console.log(`    ❌ Skipped: No blockTime`);
         continue;
       }
 
@@ -199,7 +207,7 @@ export class SwapProcessorService {
         console.log(`  Processing ${tx.signature.substring(0, 8)}... (${platform})`);
         const swap = this.createSwapFromRawTransfers(tx, walletAddress, platform);
 
-        if (swap && swap.solAmount > 0.00001) {
+        if (swap && swap.solAmount > 0.000001) {
           swaps.push(swap);
           console.log(`    ✅ Created ${swap.direction}: ${swap.tokenAmount.toFixed(4)} tokens @ ${swap.pricePerToken.toFixed(8)} SOL/token`);
         } else {
@@ -411,9 +419,9 @@ export class SwapProcessorService {
       ])
     ));
 
-    // Filter out tokens with no significant net change
+    // Filter out tokens with no significant net change - be more lenient
     const significantChanges = new Map([...tokenChanges.entries()].filter(([_, change]) => 
-      Math.abs(change) > 0.000001
+      Math.abs(change) > 0.0000001 // Much lower threshold
     ));
 
     console.log(`      Significant token changes: ${significantChanges.size}`);
@@ -424,7 +432,7 @@ export class SwapProcessorService {
       return null;
     }
     
-    if (Math.abs(solChange) < 0.00001) {
+    if (Math.abs(solChange) < 0.0000001) { // Much lower threshold
       console.log(`      ❌ No significant SOL change detected`);
       return null;
     }
@@ -444,7 +452,7 @@ export class SwapProcessorService {
     console.log(`      SOL amount: ${solAmount.toFixed(6)}`);
 
     // Validate the trade makes sense
-    if (solAmount < 0.00001) {
+    if (solAmount < 0.000001) {
       console.log(`      ❌ SOL amount too small: ${solAmount}`);
       return null;
     }
@@ -496,4 +504,4 @@ export class SwapProcessorService {
     
     return 0;
   }
-} 
+}
