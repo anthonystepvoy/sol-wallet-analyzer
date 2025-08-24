@@ -1,10 +1,11 @@
 # 🚀 Solana Wallet Analyzer & Trader Discovery
 
 > **Professional-grade Solana wallet analysis tool with real-time trader discovery capabilities**
-
+<div align="center">
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Solana](https://img.shields.io/badge/Solana-9945FF?logo=solana&logoColor=white)](https://solana.com/)
+</div>
 
 A sophisticated, enterprise-grade tool for analyzing Solana wallet trading performance and discovering profitable traders in real-time. Built with advanced FIFO accounting, multi-API redundancy, and comprehensive security features.
 
@@ -41,10 +42,11 @@ A sophisticated, enterprise-grade tool for analyzing Solana wallet trading perfo
 - **Intelligent Caching**: Reduces API calls and improves response times
 - **Batch Processing**: Efficient handling of large transaction datasets
 - **Memory Management**: Optimized for analyzing high-volume traders
-
+<div align="center">
 <img width="602" height="764" alt="image" src="https://github.com/user-attachments/assets/5150ec30-31f9-4d0c-9529-7bce1a18737b" />
 
 <img width="594" height="842" alt="image" src="https://github.com/user-attachments/assets/68088015-5742-489c-a8c9-587b4aa4706a" />
+</div>
 
 ## 🚀 Quick Start
 
