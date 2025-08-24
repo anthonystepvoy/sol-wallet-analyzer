@@ -1,6 +1,8 @@
-import axios from 'axios';
+import axios, { AxiosResponse } from 'axios';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { TransactionSignature, ParsedTransaction } from '../types';
+import https from 'https';
+import crypto from 'crypto';
 
 export class DataAcquisitionService {
   private connection: Connection;
@@ -8,11 +10,26 @@ export class DataAcquisitionService {
   private blockDaemonApiKey?: string;
   private instantNodesConnection?: Connection;
   private heliusConnection?: Connection;
+  private requestCount = 0;
+  private maxRequestsPerSession = 10000;
+  private lastRequestTime = 0;
+  private minRequestInterval = 50; // 50ms between requests
+  private httpsAgent: https.Agent;
 
   constructor(rpcUrl: string, heliusApiKey: string, blockDaemonApiKey?: string) {
+    this.validateInputs(rpcUrl, heliusApiKey, blockDaemonApiKey);
+    
     this.connection = new Connection(rpcUrl);
     this.heliusApiKey = heliusApiKey;
     this.blockDaemonApiKey = blockDaemonApiKey;
+    
+    // Configure secure HTTPS agent
+    this.httpsAgent = new https.Agent({
+      keepAlive: true,
+      timeout: 30000,
+      maxSockets: 10,
+      rejectUnauthorized: true
+    });
     
     // Create separate connections for different providers
     const instantNodesUrl = process.env.INSTANTNODES_RPC_URL;
@@ -26,6 +43,74 @@ export class DataAcquisitionService {
     if (heliusUrl) {
       this.heliusConnection = new Connection(heliusUrl);
       console.log('🔗 Helius connection established');
+    }
+  }
+
+  /**
+   * Validate constructor inputs
+   */
+  private validateInputs(rpcUrl: string, heliusApiKey: string, blockDaemonApiKey?: string): void {
+    if (!rpcUrl || typeof rpcUrl !== 'string') {
+      throw new Error('Invalid RPC URL');
+    }
+    
+    if (!heliusApiKey || typeof heliusApiKey !== 'string' || heliusApiKey.length < 10) {
+      throw new Error('Invalid Helius API key');
+    }
+    
+    if (blockDaemonApiKey && typeof blockDaemonApiKey !== 'string') {
+      throw new Error('Invalid BlockDaemon API key');
+    }
+    
+    // Validate URL format
+    try {
+      new URL(rpcUrl);
+    } catch {
+      throw new Error('Invalid RPC URL format');
+    }
+  }
+
+  /**
+   * Hash address for privacy in logs
+   */
+  private hashAddress(address: string): string {
+    return crypto.createHash('sha256').update(address).digest('hex').slice(0, 12);
+  }
+
+  /**
+   * Enforce rate limiting between requests
+   */
+  private async enforceRateLimit(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    
+    if (timeSinceLastRequest < this.minRequestInterval) {
+      await new Promise(resolve => setTimeout(resolve, this.minRequestInterval - timeSinceLastRequest));
+    }
+    
+    this.lastRequestTime = Date.now();
+  }
+
+  /**
+   * Validate API response for security
+   */
+  private validateApiResponse(response: AxiosResponse): void {
+    if (!response || typeof response !== 'object') {
+      throw new Error('Invalid API response format');
+    }
+    
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`API request failed with status ${response.status}`);
+    }
+    
+    if (!response.data) {
+      throw new Error('API response missing data');
+    }
+    
+    // Check for potential XSS in response
+    const responseStr = JSON.stringify(response.data);
+    if (responseStr.includes('<script>') || responseStr.includes('javascript:')) {
+      throw new Error('Suspicious content detected in API response');
     }
   }
 
@@ -44,7 +129,7 @@ export class DataAcquisitionService {
     const allSignatures: TransactionSignature[] = [];
     let before: string | undefined = undefined;
     
-    console.log(`Fetching transaction signatures for ${walletAddress} over the last ${daysBack} days...`);
+    console.log(`Fetching transaction signatures for ${this.hashAddress(walletAddress)} over the last ${daysBack} days...`);
     
     while (true) {
       try {
@@ -118,8 +203,13 @@ export class DataAcquisitionService {
 
         console.log(`Fetched ${signatures.length} signatures, total so far: ${allSignatures.length}`);
         
-        // Add a small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Rate limiting and request tracking
+        await this.enforceRateLimit();
+        this.requestCount++;
+        
+        if (this.requestCount > this.maxRequestsPerSession) {
+          throw new Error('Maximum requests per session exceeded');
+        }
         
       } catch (error) {
         console.error('Error fetching signatures:', error);
@@ -156,10 +246,17 @@ export class DataAcquisitionService {
           {
             headers: {
               'Authorization': `Bearer ${this.blockDaemonApiKey}`,
-              'Content-Type': 'application/json'
-            }
+              'Content-Type': 'application/json',
+              'User-Agent': 'SolanaWalletAnalyzer/1.0'
+            },
+            httpsAgent: this.httpsAgent,
+            timeout: 30000,
+            maxRedirects: 0
           }
         );
+        
+        // Validate response
+        this.validateApiResponse(response);
 
         if (response.data?.result) {
           // Transform BlockDaemon format to match our expected format
@@ -396,10 +493,17 @@ export class DataAcquisitionService {
           },
           {
             headers: {
-              'Content-Type': 'application/json'
-            }
+              'Content-Type': 'application/json',
+              'User-Agent': 'SolanaWalletAnalyzer/1.0'
+            },
+            httpsAgent: this.httpsAgent,
+            timeout: 30000,
+            maxRedirects: 0
           }
         );
+        
+        // Validate response
+        this.validateApiResponse(response);
 
         if (response.data && Array.isArray(response.data)) {
           const parsedBatch = response.data.filter((tx: any) => tx !== null).map((tx: any) => {
@@ -418,8 +522,13 @@ export class DataAcquisitionService {
 
         console.log(`Parsed batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(signatures.length / batchSize)}`);
         
-        // Add a small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Rate limiting and request tracking
+        await this.enforceRateLimit();
+        this.requestCount++;
+        
+        if (this.requestCount > this.maxRequestsPerSession) {
+          throw new Error('Maximum requests per session exceeded');
+        }
         
       } catch (error) {
         console.error(`Error parsing batch starting at index ${i}:`, error);

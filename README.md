@@ -1,6 +1,12 @@
-# Solana Wallet Analyzer & Trader Discovery
+# 🚀 Solana Wallet Analyzer & Trader Discovery
 
-A comprehensive tool for analyzing Solana wallet performance and discovering profitable traders in real-time.
+> **Professional-grade Solana wallet analysis tool with real-time trader discovery capabilities**
+
+[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Solana](https://img.shields.io/badge/Solana-9945FF?logo=solana&logoColor=white)](https://solana.com/)
+
+A sophisticated, enterprise-grade tool for analyzing Solana wallet trading performance and discovering profitable traders in real-time. Built with advanced FIFO accounting, multi-API redundancy, and comprehensive security features.
 
 ## Features
 
@@ -17,7 +23,26 @@ A comprehensive tool for analyzing Solana wallet performance and discovering pro
 - **Smart Filtering**: Queues promising wallets for analysis
 - **Platform Detection**: Jupiter, Raydium, pump.fun support
 
-## Quick Start
+## 🎯 Key Features
+
+### 🏆 **Professional-Grade Analysis**
+- **FIFO Accounting**: Industry-standard First-In-First-Out methodology for accurate PnL calculations
+- **Multi-API Redundancy**: Seamless failover between InstantNodes, Helius, and BlockDaemon
+- **Real-time Discovery**: Live monitoring of DEX transactions to identify profitable traders
+- **Security-First**: Built-in rate limiting, input validation, and secure API handling
+
+### 📈 **Advanced Analytics**
+- **Comprehensive Metrics**: Win rates, trade frequency, volume analysis, and risk assessment
+- **Token Intelligence**: Automatic filtering of legitimate projects vs. scam tokens
+- **Platform Detection**: Support for Jupiter, Raydium, pump.fun, and other major DEXs
+- **Confidence Scoring**: Data quality assessment for reliable analysis
+
+### ⚡ **Performance Optimized**
+- **Intelligent Caching**: Reduces API calls and improves response times
+- **Batch Processing**: Efficient handling of large transaction datasets
+- **Memory Management**: Optimized for analyzing high-volume traders
+
+## 🚀 Quick Start
 
 ### Prerequisites
 ```bash

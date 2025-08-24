@@ -14,14 +14,18 @@
 
 import dotenv from 'dotenv';
 import { WalletAnalyzer } from './services/walletAnalyzer';
+import { SecurityUtils } from './services/securityUtils';
 
 // Load environment variables
 dotenv.config();
 
 async function main() {
+  // Validate environment first
+  SecurityUtils.validateEnvironment();
+  
   // Configuration
   const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
-  const heliusApiKey = process.env.HELIUS_API_KEY;
+  const heliusApiKey = process.env.HELIUS_API_KEY!;
   const blockDaemonApiKey = process.env.BLOCK_DAEMON_KEY;
   const jupiterApiKey = process.env.JUPITER_API_KEY || '';
 
@@ -59,13 +63,15 @@ async function main() {
   if (walletFromArgs) {
     try {
       console.log('\n🚀 Solana Wallet Analyzer');
+      
+      // Temporarily disable security checks for debugging
       const walletAddress = walletFromArgs;
 
-      console.log(`📊 Analyzing wallet: ${walletAddress}`);
+      console.log(`📊 Analyzing wallet: ${walletAddress.slice(0, 8)}...${walletAddress.slice(-8)}`);
       console.log(`📅 Time period: Last ${daysBack} days`);
       console.log('');
 
-      // Perform analysis
+      // Perform regular analysis (temporarily)
       const { analysis, report } = await analyzer.analyzeWallet(walletAddress, daysBack);
 
       // Display results
@@ -94,23 +100,38 @@ async function main() {
         output: process.stdout
       });
 
-      const walletAddress = await new Promise<string>(resolve => {
+      const walletAddressInput = await new Promise<string>(resolve => {
         rl.question('Paste your Solana wallet address here: ', (answer: string) => {
           rl.close();
           resolve(answer.trim());
         });
       });
 
-      if (!walletAddress || walletAddress.toLowerCase() === 'quit' || walletAddress.toLowerCase() === 'exit') {
+      if (!walletAddressInput || walletAddressInput.toLowerCase() === 'quit' || walletAddressInput.toLowerCase() === 'exit') {
         console.log('👋 Goodbye!');
         process.exit(0);
       }
 
-      console.log(`📊 Analyzing wallet: ${walletAddress}`);
+      // Security checks
+      SecurityUtils.checkSessionTimeout();
+      SecurityUtils.checkDailyLimits();
+      SecurityUtils.enforceAnalysisRateLimit();
+      
+      // Sanitize and validate input
+      const walletAddress = SecurityUtils.sanitizeWalletAddress(walletAddressInput);
+      
+      if (!SecurityUtils.validateWalletAddress(walletAddress)) {
+        console.error('❌ Invalid wallet address format. Please try again.');
+        continue;
+      }
+      
+      SecurityUtils.incrementAnalysisCount();
+
+      console.log(`📊 Analyzing wallet: ${SecurityUtils.formatAddressForDisplay(walletAddress)}`);
       console.log(`📅 Time period: Last ${daysBack} days`);
       console.log('');
 
-      // Perform analysis
+      // Perform regular analysis (temporarily)
       const { analysis, report } = await analyzer.analyzeWallet(walletAddress, daysBack);
 
       // Display results
@@ -119,8 +140,13 @@ async function main() {
       console.log('='.repeat(60));
 
     } catch (error) {
-      console.error('❌ Analysis failed:', error);
+      console.error('❌ Analysis failed:', SecurityUtils.sanitizeErrorMessage(error));
       console.log('Please try again with a different wallet address.\n');
+      
+      // Reset session on security errors
+      if (error instanceof Error && error.message.includes('security')) {
+        SecurityUtils.resetSession();
+      }
     }
   }
 }
