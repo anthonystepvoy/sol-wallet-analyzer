@@ -42,6 +42,10 @@ A sophisticated, enterprise-grade tool for analyzing Solana wallet trading perfo
 - **Batch Processing**: Efficient handling of large transaction datasets
 - **Memory Management**: Optimized for analyzing high-volume traders
 
+<img width="602" height="764" alt="image" src="https://github.com/user-attachments/assets/5150ec30-31f9-4d0c-9529-7bce1a18737b" />
+
+<img width="594" height="842" alt="image" src="https://github.com/user-attachments/assets/68088015-5742-489c-a8c9-587b4aa4706a" />
+
 ## 🚀 Quick Start
 
 ### Prerequisites
