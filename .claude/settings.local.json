@@ -21,7 +21,13 @@
       "WebFetch(domain:www.helius.dev)",
       "WebFetch(domain:docs.instantnodes.io)",
       "Bash(rm:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(npm run:*)",
+      "Bash(timeout 10 npm run discover)",
+      "Bash(timeout 60 npm start:*)",
+      "Bash(npm start 699qikjExygEtnMT1SUwyo95ow9TSCxj1LNdUSAQqX4j)",
+      "Bash(npm start:*)"
     ],
     "deny": []
   }

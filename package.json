@@ -1,5 +1,5 @@
 {
-  "name": "solana-wallet-analyzer",
+  "name": "solens-wallet-analyzer",
   "version": "1.0.0",
   "description": "Solana wallet analyzer and trader discovery system with real-time monitoring",
   "main": "dist/index.js",
@@ -8,6 +8,9 @@
     "start": "ts-node src/index.ts",
     "analyze": "ts-node src/index.ts",
     "discover": "ts-node wallet-discovery.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "clean": "rm -rf dist temp node_modules/.cache .tsbuildinfo"
   },
   "keywords": [
@@ -20,7 +23,18 @@
     "copytrading",
     "real-time"
   ],
-  "author": "",
+  "author": {
+    "name": "Anthony Stepvoy",
+    "url": "https://github.com/anthonystepvoy"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anthonystepvoy/solens-wallet-analyzer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/anthonystepvoy/solens-wallet-analyzer/issues"
+  },
+  "homepage": "https://github.com/anthonystepvoy/solens-wallet-analyzer#readme",
   "license": "MIT",
   "dependencies": {
     "@solana/web3.js": "^1.87.6",

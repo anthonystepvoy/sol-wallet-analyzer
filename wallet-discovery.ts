@@ -32,8 +32,8 @@ class WalletDiscoveryEngine {
   private isAnalyzing = false;
 
   constructor() {
-    // Monitor swaps > 1 SOL
-    this.monitor = new LiveSwapMonitor(1.0, (swap) => this.handleSwapDetection(swap));
+    // Monitor swaps > 0.1 SOL
+    this.monitor = new LiveSwapMonitor(0.1, (swap) => this.handleSwapDetection(swap));
     
     // Initialize analyzer
     const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
@@ -87,12 +87,12 @@ class WalletDiscoveryEngine {
 
   private shouldAnalyze(wallet: DiscoveredWallet): boolean {
     // Analyze if:
-    // - More than 20 SOL total volume, OR
-    // - More than 3 swaps, OR
-    // - Single swap > 10 SOL
-    return wallet.totalSwapVolume > 20 || 
-           wallet.swapCount > 3 || 
-           (wallet.totalSwapVolume / wallet.swapCount) > 10;
+    // - More than 5 SOL total volume, OR
+    // - More than 2 swaps, OR
+    // - Single swap > 2 SOL
+    return wallet.totalSwapVolume > 5 || 
+           wallet.swapCount > 2 || 
+           (wallet.totalSwapVolume / wallet.swapCount) > 2;
   }
 
   private queueForAnalysis(walletAddress: string): void {
