@@ -192,3 +192,5 @@ This project focuses on defensive security and trading analysis. Contributions s
 ## License
 
 MIT License
+
+**Note**: This project was originally built for personal use and is now being shared publicly to contribute to the developer community.
