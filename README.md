@@ -5,10 +5,30 @@
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Solana](https://img.shields.io/badge/Solana-9945FF?logo=solana&logoColor=white)](https://solana.com/)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![npm](https://img.shields.io/badge/npm-8+-red.svg)](https://www.npmjs.com/)
+[![CI](https://github.com/anthonystepvoy/sol-wallet-analyzer/workflows/CI/badge.svg)](https://github.com/anthonystepvoy/sol-wallet-analyzer/actions)
 
 A sophisticated, enterprise-grade tool for analyzing Solana wallet trading performance and discovering profitable traders in real-time. Built with advanced FIFO accounting, multi-API redundancy, and comprehensive security features.
 
-## Features
+## 📋 Table of Contents
+
+- [Features](#features)
+- [Quick Start](#-quick-start)
+- [Installation](#installation)
+- [Usage](#usage)
+- [API Configuration](#api-configuration)
+- [Core Services](#core-services)
+- [Project Structure](#project-structure)
+- [Analysis Output](#analysis-output)
+- [Discovery Criteria](#discovery-criteria)
+- [FIFO Methodology](#fifo-methodology)
+- [Supported Platforms](#supported-platforms)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
+
+## ✨ Features
 
 ### 📊 Wallet Analysis
 - **PnL Calculation**: Accurate profit/loss using FIFO methodology
@@ -45,22 +65,42 @@ A sophisticated, enterprise-grade tool for analyzing Solana wallet trading perfo
 ## 🚀 Quick Start
 
 ### Prerequisites
-```bash
-npm install
-```
 
-### Environment Setup
-Copy `.env.example` to `.env` and configure:
-```bash
-# Required
-HELIUS_API_KEY=your_helius_api_key
+- **Node.js 18+** - [Download here](https://nodejs.org/)
+- **npm 8+** or **yarn** - Usually comes with Node.js
+- **Git** - [Download here](https://git-scm.com/)
 
-# Optional but recommended
-INSTANTNODES_RPC_URL=your_instantnodes_url
-HELIUS_RPC_URL=your_helius_rpc_url
-BLOCK_DAEMON_KEY=your_blockdaemon_key
-JUPITER_API_KEY=your_jupiter_key
-```
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/anthonystepvoy/sol-wallet-analyzer.git
+   cd sol-wallet-analyzer
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Environment Setup**
+   Copy `.env.example` to `.env` and configure:
+   ```bash
+   # Required
+   HELIUS_API_KEY=your_helius_api_key
+   
+   # Optional but recommended
+   INSTANTNODES_RPC_URL=your_instantnodes_url
+   HELIUS_RPC_URL=your_helius_rpc_url
+   BLOCK_DAEMON_KEY=your_blockdaemon_key
+   JUPITER_API_KEY=your_jupiter_key
+   ```
+
+4. **Get API Keys**
+   - **Helius**: [Free API key](https://dev.helius.xyz/) (required)
+   - **InstantNodes**: [RPC service](https://instantnodes.com/) (optional)
+   - **BlockDaemon**: [Enterprise RPC](https://blockdaemon.com/) (optional)
+   - **Jupiter**: [DEX aggregator](https://jup.ag/) (optional)
 
 ## Usage
 
@@ -122,25 +162,7 @@ The discovery engine will:
 - DEX program log subscriptions
 - Large transaction detection
 
-## Project Structure
 
-```
-src/
-├── index.ts              # Main wallet analyzer
-├── services/
-│   ├── walletAnalyzer.ts     # Core analysis engine
-│   ├── dataAcquisition.ts    # Multi-API data fetching
-│   ├── pnlEngine.ts          # PnL calculations
-│   ├── swapProcessor.ts      # Transaction processing
-│   ├── liveSwapMonitor.ts    # Real-time monitoring
-│   ├── analyticsService.ts   # Trading metrics
-│   ├── reportFormatter.ts    # Output formatting
-│   └── ...
-└── types/
-    └── index.ts          # TypeScript definitions
-
-wallet-discovery.ts       # Live trader discovery engine
-```
 
 ## Analysis Output
 
@@ -177,10 +199,99 @@ The analyzer uses First-In-First-Out (FIFO) accounting:
 - **Raydium**: `675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8`
 - **pump.fun**: `6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P`
 
-## Contributing
+## 🛠️ Development
 
-This project focuses on defensive security and trading analysis. Contributions should maintain this focus and avoid any functionality that could be used maliciously.
+### Available Scripts
 
-## License
+```bash
+# Build the project
+npm run build
 
-MIT License
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
+
+# Lint code
+npm run lint
+
+# Fix linting issues
+npm run lint:fix
+
+# Format code
+npm run format
+
+# Clean build artifacts
+npm run clean
+```
+
+### Project Structure
+
+```
+src/
+├── index.ts              # Main wallet analyzer
+├── services/
+│   ├── walletAnalyzer.ts     # Core analysis engine
+│   ├── dataAcquisition.ts    # Multi-API data fetching
+│   ├── pnlEngine.ts          # PnL calculations
+│   ├── swapProcessor.ts      # Transaction processing
+│   ├── liveSwapMonitor.ts    # Real-time monitoring
+│   ├── analyticsService.ts   # Trading metrics
+│   ├── reportFormatter.ts    # Output formatting
+│   └── ...
+└── types/
+    └── index.ts          # TypeScript definitions
+
+wallet-discovery.ts       # Live trader discovery engine
+```
+
+### Testing
+
+The project uses Jest for testing. Run tests with:
+
+```bash
+npm test
+```
+
+For development, use watch mode:
+
+```bash
+npm run test:watch
+```
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Quick Contribution Steps
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Add tests for new functionality
+5. Ensure all tests pass (`npm test`)
+6. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
+
+### Code Style
+
+- Use TypeScript for all new code
+- Follow existing naming conventions
+- Add JSDoc comments for public APIs
+- Ensure all tests pass
+- Use conventional commit messages
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Built with [Solana Web3.js](https://github.com/solana-labs/solana-web3.js)
+- Powered by [Helius](https://helius.xyz/) for blockchain data
+- Enhanced with [Jupiter](https://jup.ag/) DEX integration
